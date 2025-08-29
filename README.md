@@ -22,6 +22,8 @@ Power Management System that includes a MPPT solar input, USB-C PD input, BMS w/
 - 1S battery (no balancing)
 - Solar (~18v-20v) -> MPPT Buck -> Battery (~13v-14.5v) -> Buck -> Load (12v)
 - Battery current/voltage sensing and MOSFET disconnect switch
+- Control battery charge current by subtracting load current from total current draw? (removes the need for battery current sensing)
+  - Or, use battery current and total current to determine load current (better safety for battery)
 
 ## Design 'Units'
 
@@ -77,7 +79,22 @@ Main contender is the STM32G4x4:
 
 ## Other Parts
 
-- Hall effect current sensor: ACS712 (noisy!)
+- Hall effect current sensor:
+  - ACS712 (popular but noisy!)
+  - LEM HLSR50 (expensive - $16 - but 50A, shielded, internal voltage ref, can be used with differential ADC eliminating need for calibration)
+- MOSFET Driver for synconous buck converter:
+  - IR2101 and IR2110 (seperate PWM inputs for high and low side MOSFETS)
+  - IR2104 (One PWM input drives both high and low side MOSFETS)
+    - Be careful!!! Setting the PWM too low causes the high side to stay off and the low side to stay on, resulting in a short circuit if a battery is attached and potentially burning out the low-side MOSFET.
+    - `PWM Floor Duty Cycle = (Output Voltage / Input Voltage) * 100)`
+    - When PWM signal has a lower duty cycle than the computed PWM floor value, the current flows in reverse and causes the low-side MOSFET to conduct when it isn't supposed to be conducting.
+- Isolated DC-DC Converter:
+  - B1212S
+- ADC:
+  - ADS1115 (16bit 860sps) / ADS1015 (12bit 3300sps)
+  - (the STM32G4x4's internal ADC might be good enough?)
+- MOSFET:
+  - CSD19505
 
 # Resources
 
@@ -93,11 +110,20 @@ Main contender is the STM32G4x4:
 - Discharge Under-Voltage Protection: 8.0 V (2.0 ±0.08 vpc) (20 ±8 ms)
 - Reconnect Voltage:                  9.04V (2.26 ±0.34 vpc)
 
+## Battery Charging
+
+- https://en.wikipedia.org/wiki/Battery_balancing
+
 ## MPPT Solar Charger
 
 - https://www.instructables.com/DIY-1kW-MPPT-Solar-Charge-Controller/
+  - https://drive.google.com/drive/folders/1Sd2jWAb-F8NAXlJ6PLdhcnPDQV0alD15
 - https://www.instructables.com/ARDUINO-SOLAR-CHARGE-CONTROLLER-Version-30/
+  - https://microcontrolere.wordpress.com/2016/12/16/mppt-solar-charger/
 - https://www.opengreenenergy.com/
-- https://www.opengreenenergy.com/arduino-solar-charge-controller-v2-02/
+  - https://www.opengreenenergy.com/arduino-solar-charge-controller-v2-02/
 - https://www.instructables.com/How-to-Design-and-Build-a-MPPT-Solar-Charger-Using/
 - https://www.mathworks.com/discovery/mppt-algorithm.html
+- In an MPPT buck converter, when the PV voltage is lower than the battery voltage, the high-side MOSFET body diode causes current leakage from the batteries into the solar panels.
+  - Solution: Add reverse blocking MOSFET
+  - Drive the MOSFET with and isolated DC-DC converter (B1212S)
